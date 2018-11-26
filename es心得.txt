@@ -1,0 +1,275 @@
+elasticsearch-head-master安装方法
+1、上githut搜索elasticsearch-head-master，下载
+2、解压
+3、用npm安装：npm install
+4、npm启动：npm run start
+----------------------------------------------------------------------------------------------------
+1、elasticsearch -d。加-d参数后台启动
+2、elasticsearch-head 是一个管理es的视图软件
+3、elasticsearch配置文件是elasticsearch.yml
+4、elasticsearch-head要配置跨域问题，在最后一行加上：http.cors.enabled: true  http.cors.allow-origin: "*"
+5、elasticsearch集群
+（一） cluster.name: Jim  //集群名字
+（二） node.name: master //节点名字
+（三） node.master: true //是否master
+ (四) network.host: 127.0.0.1 //绑定ip
+ (五) http:port: 8200 //指定端口
+（六）discovery.zen.ping.unicast.host: ["127.0.0.1"] //集群ip
+（七）path.datas 数据存储地址
+（八）path.log 日志存储地址
+（九）jvm.options，配送es运行的内存，-Xmx2g
+6、创建索引类型（用put方法，请求地址：http://localhost:9200/people）,创建索引为people
+{
+    "settings":{
+        "number_of_shards":3,     //分片数
+        "number_of_replicas": 2   //备份数
+    },
+    "mappings":{                  //类型
+        "man":{
+            "properties":{
+                "name":{
+                    "type": "text"
+                },
+                "country":{
+                    "type": "keyword"
+                },
+                "age":{
+                    "type": "integer"
+                },
+                "data":{
+                    "type": "date",
+                    "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+                }
+            }
+        }
+    }
+}
+7、插入数据(请求地址：http://localhost:9200/people/man)，自动生成id，用post，people是索引，man是类型
+{
+    "name":"阿吉2",
+    "counrty":"中国",
+    "age":20,
+    "date":"1991-09-19"
+}
+8、修改数据（请求地址：http://localhost:9200/people/man/1/_update），用post，people是索引，man是类型，1是id,带上_update
+{
+    "doc":{   //一定要加上doc,下面是字段名
+        "name":"阿吉是个傻逼",
+        "age":"99"
+    }
+}
+9、删除数据（请求地址：http://localhost:9200/people/man/1），用del，people是索引，man是类型，1是id,带上_update
+10、查询
+（一）http://localhost:9200/book/novel/seszSWcBoTACulpcEoBj，查询book索引，novel类型，id为seszSWcBoTACulpcEoBj的数据
+ (二)查询所有数据
+     {
+        "query":{
+            "match_all":{}
+        },
+        "from":1,
+        "size":1
+    }
+ (三)排序
+ {
+    "query":{
+        "match":{
+            "title":"阿吉"
+        }
+    },
+    "sort":[
+        {"publish_data":{"order":"asc"}}
+    ]
+}
+(四)集合查询，查询work_count相同的多少个
+{
+    "aggs":{
+        "group_by_word_count":{
+            "terms":{
+                "field": "work_count"
+            }
+        }
+    }
+}
+
+多个group by
+主要group_by_（跟字段名），field加字段名
+{
+    "aggs":{
+        "group_by_word_count":{
+            "terms":{
+                "field": "work_count"
+            }
+        },
+        "group_by_publish_data":{
+            "terms":{
+                "field": "publish_data"
+            }
+        }
+    }
+}
+
+统计计算（status字段可以修改，直接获取min或者max等）
+{
+    "aggs":{
+        "grades_word_count":{
+            "stats":{
+                "field": "work_count"
+            }
+        }
+    }
+}
+
+
+
+（五）高级查询
+    match_phrase是表示字段匹配，只有match是模糊查询,单子字段的
+    {
+        "query":{
+            "match_phrase":{
+                "author":"阿吉"
+            }
+        }
+    }
+
+多个字段模糊匹配，fields字段名称
+    {
+        "query":{
+            "multi_match":{
+                "query":"阿吉",
+                "fields":["author","title"]
+            }
+        }
+    }
+
+语法查询搜索AND条件。搜索符合有阿吉和111的数据
+    {
+        "query":{
+            "query_string":{
+                "query":"阿吉 AND 111"
+            }
+        }
+    }
+
+如果想查(阿吉和111)或者（2222)，如果想加多个字段就加fileds
+    {
+        "query":{
+            "query_string":{
+                "query":"(阿吉 AND 111) OR (2222)",
+                "fileds":["title","author"]
+            }
+        }
+    }
+
+
+字段值查询，查询title包含阿吉的数据
+    {
+        "query":{
+            "term":{
+                "title":"阿吉"
+            }
+        }
+    }
+
+范围查询,gte大于等于，lte，小于等于，如果没e。lt则表示小于，支持日期的。如果是日期则直接写not
+    {
+        "query":{
+            "range":{
+                "word_count":{
+                    "gte":1000,
+                    "lte":2000
+                }
+            }
+        }
+    }
+
+范围查询,支持日期的。如果是日期则直接写now
+    {
+        "query":{
+            "range":{
+                "word_count":{
+                    "gte":"2017-09-10",
+                    "lte":"now"
+                }
+            }
+        }
+    }
+
+子条件查询,filter
+    {
+        "query":{
+            "bool":{
+                "filter":{
+                    "term":{
+                        "word_count":90000  
+                    }
+                }
+            }
+        }
+    }
+
+固定评分查询（提高分数）
+    {
+        "query":{
+            "constant_score":{
+                "filter":{
+                    "match":{
+                        "title":"阿吉"
+                    }
+                },
+                "boost":2
+            }
+        }
+    }
+
+
+bool查询满足其中一个就符合
+    {
+        "query":{
+            "bool":{
+                "should":[
+                    {
+                        "match":{
+                            "author":"阿吉"
+                        }
+                    },
+                    {
+                        "match":{
+                            "title":"1"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+
+bool必须不包含
+    {
+        "query":{
+            "bool":{
+                "must_not":[
+                    {
+                        "match":{
+                            "author":"阿吉"
+                        }
+                    },
+                    {
+                        "match":{
+                            "title":"1111"
+                        }
+                    }
+                ],
+                "filter":[
+                    {
+                        "term":{
+                            "work_count":9998
+                        }
+                    }
+                ]
+            }
+        }
+    }
+
+----------------------------------------------------------------------------------
+php composer安装es扩展
+1、composer require elasticsearch/elasticsearch
+2、修改源 composer config -g repo.packagist composer https://packagist.phpcomposer.com
