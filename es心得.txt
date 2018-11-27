@@ -18,6 +18,7 @@ elasticsearch-head-master安装方法
 （七）path.datas 数据存储地址
 （八）path.log 日志存储地址
 （九）jvm.options，配送es运行的内存，-Xmx2g
+ (十)action.destructive_requires_name: true，防止删除所有索引
 6、创建索引类型（用put方法，请求地址：http://localhost:9200/people）,创建索引为people
 {
     "settings":{
