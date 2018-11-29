@@ -1,0 +1,751 @@
+elasticsearch.yml是elasticsearch主要的配置文件，所有的配置都在这个文件里完成，一般情况下，默认的配置已经可以比较好地运行一个集群了，但你也可以对其进行微调。
+
+在环境变量中的参数可以用来作为配置参数的值，比如配置文件里举的一个例子为：
+
+node.rack: ${RACK_ENV_VAR}，再比如${JAVA_HOME}等。
+
+下面对其配置参数作一说明。
+
+Ø  Cluster
+1.cluster.name
+
+集群名称，如果有多个集群，那么每个集群名就得是唯一的。
+
+Ø  Node
+1．node.data
+
+集群中的节点名称，比如前面说的82、83、84三台机子每台都有一个名称，你也可以不设这个名称，默认的集群启动时会自己给每个节点初始化一个名称，但强烈建议这里还是由自己设置比较好。
+
+2．node.master
+
+该节点是否是master，true表示是的，false表示否，默认是true.
+
+3．node.data
+
+该节点是否存储数据，默认true表示是的。
+
+对于上面两个节点，如果你希望该节点只是一个master，但不存储数据，则应当设置为：
+
+node.master: true
+
+node.data: false
+
+如果你希望该节点只存储数据，但不是一个master，则应该设置：
+
+node.master: false
+
+node.data: true
+
+如果你既不希望该节点为一个master，也不想它存储数据，则应该设置为：
+
+node.master: false
+
+node.data: false
+
+这种情况一般是你希望该节点仅仅是作为一个搜索负载均衡器，比如从各节点得到数据，聚合结果等。
+
+4．  node.rack
+
+这是与该节点相关联的一个属性，用来标识某一节点，它的设置也是key:value的形式如node.rack: rack83，我对其进行设置后的输出如下：{rack=rack83, master=true}，目前没有发现它的作用在哪里，可以采用默认的不用设置。
+
+5．node.max_local_storage_nodes
+
+设置一台机子能运行的节点数目，一般采用默认的1即可，因为我们一般也只在一台机子上部署一个节点。
+
+Ø  Index
+1．  index.number_of_shards
+
+设置一个索引被分成的分片数，默认是5
+
+2．index.number_of_replicas
+
+设置一个索引有几个拷贝，默认为1。拷贝指的是其它节点对该节点的拷贝，比如在84上创建了一个索引，那么这个拷贝会存在于82和83上，这是一个分布式的属性。
+
+拷贝越多，则搜索性能越佳，而分片越多则索引创建性能越好。
+
+Ø  Paths
+1．path.conf
+
+配置文件目录，默认为es根目录下的config目录。
+
+2．path.data
+
+索引存储路径，默认为es根目录下的data目录，可以有多个存储路径，各存储路径用逗号隔开，如：path.data: /path/to/data1,/path/to/data2
+
+3．path.work
+
+临时文件存放目录，默认为es根目录下的work目录
+
+4．path.logs
+
+日志文件存放目录，默认为es根目录下的logs目录。
+
+5．path.plugins
+
+插件的安装目录，默认为es根目录下的plugins目录。
+
+Ø  Plugin
+1．plugin.mandatory
+
+这个属性的值为各个插件的名称，如果该值里所列的插件没安装，则该节点将不能启动，默认是没有插件。
+
+Ø  Memory
+1. bootstrap.mlockall
+
+Es在内存不够JVM开启swapping的时候，表现得会很差，所以为了避免这个问题，将该属性设为true，表示锁定es所使用的内存。
+
+Ø  Network And HTTP
+1．network.bind_host
+
+Es节点绑定的地址，为一个ip地址（IPv4或IPv6）
+
+2．network.publish_host
+
+Es发布的地址，其它节点通过这个地址与其进行通信
+
+3．network.host
+
+该节点网络地址，也是一个ip地址，如果设置了该属性，则network.bind_host与network.publish_host都不用再设置了，比如我这里三台机子设置的值分别为：
+
+118.200.108.82、118.200.108.83、118.200.108.84。
+
+4．transport.tcp.port
+
+节点之间通信的端口，默认为9300，在我们应用程序中调用es的方法提交索引创建时也是使用的这个端口。
+
+5．http.port
+
+http访问端口，默认是9200，通过这个端口，调用方可以索引查询请求。
+
+6．http.max_content_length
+
+设置内容的最大容量，默认是100MB
+
+7．http.enabled
+
+是否禁止http访问，默认是false。
+
+Ø  Gateway
+Gateway是一种存储集群中各节点元数据（meta data）的状态方式，这里的元数据主要用来记录所有的索引在创建时各自的设置和明确的类型映射。每次当元数据改变，比如一个索引被加入或被删除，这些变化都会通过gateway存储起来。当集群启动时，这些状态将会从gateway中读取并应用。
+
+gateway.type
+gateway类型，默认是local，也是es官方强烈建议的。
+
+gateway.recover_after_nodes
+在多少个节点启动后，允许数据恢复进程启动，默认是1
+
+gateway.recover_after_time
+设置数据恢复进程初始化的超时时间，默认是5分钟
+
+gateway.expected_nodes
+设置在集群中的多少个节点启动后马上开始数据恢复进程（不用等到gateway.recover_after_time这个属性设置的时间到）
+
+Ø  Recovery Throttling
+这里的设置是用来控制分片分配的进程，当各节点间进行初始化恢复、索引拷贝分配、再次负载均衡，或再增加或去掉节点的时候。
+
+cluster.routing.allocation.node_initial_primaries_recoveries
+初始化数据恢复时，并发恢复线程的个数，默认为4。
+
+cluster.routing.allocation.node_concurrent_recoveries
+添加删除节点或负载均衡时并发恢复线程的个数，默认为4
+
+indices.recovery.max_size_per_sec
+设置数据恢复时限制的带宽，默认为0，表示无限制。
+
+indices.recovery.concurrent_streams
+这个参数来限制从其它分片恢复数据时最大同时打开并发流的个数，默认为5
+
+Ø  Discovery
+discovery.zen.minimum_master_nodes
+设置这个参数来保证集群中的节点可以知道其它N个有master资格的节点。默认为1，对于大的集群来说，可以设置大一点的值（2-4）。
+
+discovery.zen.ping.timeout
+设置集群中自动发现其它节点时ping连接超时时间，默认为3秒，对于比较差的网络环境可以高点的值来防止自动发现时出错
+
+discovery.zen.ping.multicast.enabled
+设置是否打开多播来发现来发现节点，默认是true
+
+discovery.zen.ping.unicast.hosts
+设置集群中master节点的初始列表，可以通过这些节点来自动发现新加入集群的节点。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##################### ElasticSearch 配置示例 #####################
+
+
+
+# This file contains an overview of various configuration settings,
+# targeted at operations staff. Application developers should
+# consult the guide at <http://elasticsearch.org/guide>.
+# 这个文件包含了各种配置的概览，旨在配置与运行操作相关的东西。
+# 应用程序开发人员应该咨询<http://elasticsearch.org/guide>
+#
+# The installation procedure is covered at
+# <http://elasticsearch.org/guide/reference/setup/installation.html>.
+# 安装过程在这里有<http://elasticsearch.org/guide/reference/setup/installation.html>.
+#
+#
+# ElasticSearch comes with reasonable defaults for most settings,
+# so you can try it out without bothering with configuration.
+# ElasticSearch 已经提供了大部分设置，都是合理的默认配置。
+# 所以你不必进行烦人的配置就可以尝试一下。
+#
+# Most of the time, these defaults are just fine for running a production
+# cluster. If you're fine-tuning your cluster, or wondering about the
+# effect of certain configuration option, please _do ask_ on the
+# mailing list or IRC channel [http://elasticsearch.org/community].
+# 大多数时候，这些默认的配置就足以运行一个生产集群了。
+# 如果你想优化你的集群，或者对一个特定的配置选项的作用好奇，你可以访问邮件列表
+# 或者IRC频道[http://elasticsearch.org/community].
+#
+
+
+# Any element in the configuration can be replaced with environment variables
+# by placing them in ${...} notation. For example:
+# 配置中的任何一个元素都可以被环境变量取代，这些环境变量使用${...}符号占位
+# 例如：
+# node.rack: ${RACK_ENV_VAR}
+
+
+# See <http://elasticsearch.org/guide/reference/setup/configuration.html>
+# for information on supported formats and syntax for the configuration file.
+# 查看<http://elasticsearch.org/guide/reference/setup/configuration.html>了解更多
+# 的可支持的格式和配置文件的语法。
+
+
+
+
+################################### 集群 ###################################
+
+
+# Cluster name identifies your cluster for auto-discovery. If you're running
+# multiple clusters on the same network, make sure you're using unique names.
+# 集群名称标识了你的集群，自动探查会用到它。
+# 如果你在同一个网络中运行多个集群，那就要确保你的集群名称是独一无二的。
+#
+# cluster.name: elasticsearch
+
+
+
+
+#################################### 节点 #####################################
+
+
+# Node names are generated dynamically on startup, so you're relieved
+# from configuring them manually. You can tie this node to a specific name:
+# 节点名称会在启动的时候自动生成，所以你可以不用手动配置。你也可以给节点指定一个
+# 特定的名称
+#
+# node.name: "Franz Kafka"
+
+
+# Every node can be configured to allow or deny being eligible as the master,
+# and to allow or deny to store the data.
+# 每一个节点是否允许被选举成为主节点，是否允许存储数据，都是可以配置的
+#
+#
+# Allow this node to be eligible as a master node (enabled by default):
+# 允许这个节点被选举为一个主节点(默认为允许)
+#
+#
+# node.master: true
+#
+# Allow this node to store data (enabled by default):
+# 允许这个节点存储数据(默认为允许)
+#
+# node.data: true
+
+
+# You can exploit these settings to design advanced cluster topologies.
+# 你可以利用这些设置设计高级的集群拓扑
+#
+# 1. You want this node to never become a master node, only to hold data.
+#    This will be the "workhorse" of your cluster.
+# 1. 你不想让这个节点成为一个主节点，只想用来存储数据。
+#    这个节点会成为你的集群的“负载器”
+#
+# node.master: false
+# node.data: true
+#
+# 2. You want this node to only serve as a master: to not store any data and
+#    to have free resources. This will be the "coordinator" of your cluster.
+# 2. 你想让这个节点成为一个主节点，并且不用来存储任何数据，并且拥有空闲资源。
+#    这个节点会成为你集群中的“协调器”
+#
+# node.master: true
+# node.data: false
+#
+# 3. You want this node to be neither master nor data node, but
+#    to act as a "search load balancer" (fetching data from nodes,
+#    aggregating results, etc.)
+# 4. 你既不想让这个节点变成主节点也不想让其变成数据节点，只想让其成为一个“搜索负载均衡器”
+#    (从节点中获取数据，聚合结果，等等)
+#
+# node.master: false
+# node.data: false
+
+
+# Use the Cluster Health API [http://localhost:9200/_cluster/health], the
+# Node Info API [http://localhost:9200/_cluster/nodes] or GUI tools
+# such as <http://github.com/lukas-vlcek/bigdesk> and
+# <http://mobz.github.com/elasticsearch-head> to inspect the cluster state.
+# 使用集群体检API[http://localhost:9200/_cluster/health] ,
+# 节点信息API[http://localhost:9200/_cluster/nodes] 或者GUI工具例如：
+# <http://github.com/lukas-vlcek/bigdesk>和<http://mobz.github.com/elasticsearch-head>
+# 可以查看集群状态
+#
+
+
+# A node can have generic attributes associated with it, which can later be used
+# for customized shard allocation filtering, or allocation awareness. An attribute
+# is a simple key value pair, similar to node.key: value, here is an example:
+# 一个节点可以附带一些普通的属性，这些属性可以在后面的自定义分片分配过滤或者allocation awareness中使用。
+# 一个属性就是一个简单的键值对，类似于node.key: value, 这里有一个例子：
+#
+# node.rack: rack314
+
+
+# By default, multiple nodes are allowed to start from the same installation location
+# to disable it, set the following:
+# 默认的，多个节点允许从同一个安装位置启动。若想禁止这个特性，按照下面所示配置：
+# node.max_local_storage_nodes: 1
+# 
+
+
+#################################### 索引 ####################################
+
+
+# You can set a number of options (such as shard/replica options, mapping
+# or analyzer definitions, translog settings, ...) for indices globally,
+# in this file.
+# 你可以在这个文件中为所有的索引设置一系列的全局操作(例如 分片/副本 操作，mapping(映射)
+# 或者分词器定义，translog配置,...)
+# 
+#
+# Note, that it makes more sense to configure index settings specifically for
+# a certain index, either when creating it or by using the index templates API.
+# 提示，针对一个特定的索引进行配置更合理，不论是在创建索引还是使用索引模板API的时候。
+#
+#
+# See <http://elasticsearch.org/guide/reference/index-modules/> and
+# <http://elasticsearch.org/guide/reference/api/admin-indices-create-index.html>
+# for more information.
+# 详情见<http://elasticsearch.org/guide/reference/index-modules/>和
+# <http://elasticsearch.org/guide/reference/api/admin-indices-create-index.html>
+
+
+# Set the number of shards (splits) of an index (5 by default):
+# 设置一个索引的分片数量(默认为5)
+#
+# index.number_of_shards: 5
+
+
+# Set the number of replicas (additional copies) of an index (1 by default):
+# 设置一个索引的副本数量(默认为1)
+#
+# index.number_of_replicas: 1
+
+
+# Note, that for development on a local machine, with small indices, it usually
+# makes sense to "disable" the distributed features:
+# 注意，为了使用小的索引在本地机器上开发，禁用分布式特性是合理的做法。
+#
+#
+# index.number_of_shards: 1
+# index.number_of_replicas: 0
+
+
+# These settings directly affect the performance of index and search operations
+# in your cluster. Assuming you have enough machines to hold shards and
+# replicas, the rule of thumb is:
+# 这些设置会直接影响索引和查询操作的在集群中的性能。假如你有足够的机器来放分片和副本，
+# 最佳实践是:
+#
+# 1. Having more *shards* enhances the _indexing_ performance and allows to
+#    _distribute_ a big index across machines.
+# 1. 索引分片分的多一些，可以提高索引的性能，并且把一个大的索引分布到机器中去。
+# 2. Having more *replicas* enhances the _search_ performance and improves the
+#    cluster _availability_.
+# 2. 副本分片分的多一些，可以提高搜索的性能，并且提高集群的可用性。
+#
+# The "number_of_shards" is a one-time setting for an index.
+# "number_of_shards"对一个索引来说只能配置一次
+#
+# The "number_of_replicas" can be increased or decreased anytime,
+# by using the Index Update Settings API.
+# "number_of_replicas"在任何时候都可以增加或减少，通过Index Update Settings(索引更新配置)API可以做到这一点。
+#
+#
+# ElasticSearch takes care about load balancing, relocating, gathering the
+# results from nodes, etc. Experiment with different settings to fine-tune
+# your setup.
+# ElasticSearch 会维护load balancin(负载均衡),relocating(重定位),合并来自各个节点的结果等等。
+# 你可以实验不同的配置来进行优化。
+#
+
+
+# Use the Index Status API (<http://localhost:9200/A/_status>) to inspect
+# the index status.
+# 使用Index Status(索引状态)API (<http://localhost:9200/A/_status>)查看索引状态
+
+
+#################################### Paths(路径) ####################################
+
+
+# Path to directory containing configuration (this file and logging.yml):
+# 包含配置(这个文件和logging.yml)的目录的路径
+#
+# path.conf: /path/to/conf
+
+
+# Path to directory where to store index data allocated for this node.
+# 存储这个节点的索引数据的目录的路径
+# 
+# path.data: /path/to/data
+#
+# Can optionally include more than one location, causing data to be striped across
+# the locations (a la RAID 0) on a file level, favouring locations with most free
+# space on creation. For example:
+# 可以随意的包含不止一个位置，这样数据会在文件层跨越多个位置(a la RAID 0),创建时会
+# 优先选择大的剩余空间的位置
+#
+# path.data: /path/to/data1,/path/to/data2
+
+
+# Path to temporary files:
+# 临时文件的路径
+#
+# path.work: /path/to/work
+
+
+# Path to log files:
+# 日志文件的路径
+#
+# path.logs: /path/to/logs
+
+
+# Path to where plugins are installed:
+# 插件安装路径
+#
+# path.plugins: /path/to/plugins
+
+
+
+
+#################################### 插件 ###################################
+
+
+# If a plugin listed here is not installed for current node, the node will not start.
+# 如果当前结点没有安装下面列出的插件，结点不会启动
+#
+# plugin.mandatory: mapper-attachments,lang-groovy
+
+
+
+
+################################### 内存 ####################################
+
+
+# ElasticSearch performs poorly when JVM starts swapping: you should ensure that
+# it _never_ swaps.
+# 当JVM开始swapping(换页)时ElasticSearch性能会低下，你应该保证它不会换页
+#
+#
+# Set this property to true to lock the memory:
+# 设置这个属性为true来锁定内存
+#
+# bootstrap.mlockall: true
+
+
+# Make sure that the ES_MIN_MEM and ES_MAX_MEM environment variables are set
+# to the same value, and that the machine has enough memory to allocate
+# for ElasticSearch, leaving enough memory for the operating system itself.
+# 确保ES_MIN_MEM和ES_MAX_MEM环境变量设置成了同一个值，确保机器有足够的内存来分配
+# 给ElasticSearch，并且保留足够的内存给操作系统
+#
+#
+# You should also make sure that the ElasticSearch process is allowed to lock
+# the memory, eg. by using `ulimit -l unlimited`.
+# 你应该确保ElasticSearch的进程可以锁定内存，例如：使用`ulimit -l unlimited`
+#
+
+
+
+
+############################## Network(网络) 和 HTTP ###############################
+
+
+# ElasticSearch, by default, binds itself to the 0.0.0.0 address, and listens
+# on port [9200-9300] for HTTP traffic and on port [9300-9400] for node-to-node
+# communication. (the range means that if the port is busy, it will automatically
+# try the next port).
+# 默认的ElasticSearch把自己和0.0.0.0地址绑定，HTTP传输的监听端口在[9200-9300]，节点之间
+# 通信的端口在[9300-9400]。(范围的意思是说如果一个端口已经被占用，它将会自动尝试下一个端口)
+#
+#
+
+
+# Set the bind address specifically (IPv4 or IPv6):
+# 设置一个特定的绑定地址(IPv4 or IPv6):
+#
+# network.bind_host: 192.168.0.1
+
+
+# Set the address other nodes will use to communicate with this node. If not
+# set, it is automatically derived. It must point to an actual IP address.
+# 设置其他节点用来与这个节点通信的地址。如果没有设定，会自动获取。
+# 必须是一个真实的IP地址。
+#
+# network.publish_host: 192.168.0.1
+
+
+# Set both 'bind_host' and 'publish_host':
+# 'bind_host'和'publish_host'都设置
+#
+# network.host: 192.168.0.1
+
+
+# Set a custom port for the node to node communication (9300 by default):
+# 为节点之间的通信设置一个自定义端口(默认为9300)
+#
+# transport.tcp.port: 9300
+
+
+# Enable compression for all communication between nodes (disabled by default):
+# 为所有的节点间的通信启用压缩(默认为禁用)
+#
+# transport.tcp.compress: true
+
+
+# Set a custom port to listen for HTTP traffic:
+# 设置一个监听HTTP传输的自定义端口
+#
+# http.port: 9200
+
+
+# Set a custom allowed content length:
+# 设置一个自定义的允许的内容长度
+#
+# http.max_content_length: 100mb
+
+
+# Disable HTTP completely:
+# 完全禁用HTTP
+#
+# http.enabled: false
+
+
+
+
+################################### Gateway ###################################
+
+
+# The gateway allows for persisting the cluster state between full cluster
+# restarts. Every change to the state (such as adding an index) will be stored
+# in the gateway, and when the cluster starts up for the first time,
+# it will read its state from the gateway.
+# Gateway支持持久化集群状态。状态的每一个改变(例如添加一个索引)将会被存储在gateway，
+# 当集群第一次启动时，它会从gateway中读取它的状态。
+#
+
+
+# There are several types of gateway implementations. For more information,
+# see <http://elasticsearch.org/guide/reference/modules/gateway>.
+# 还有多种类型的gateway实现。详情见<http://elasticsearch.org/guide/reference/modules/gateway>
+
+
+# The default gateway type is the "local" gateway (recommended):
+# 默认的gateway类型是 "local" gateway(推荐)
+#
+# gateway.type: local
+
+
+# Settings below control how and when to start the initial recovery process on
+# a full cluster restart (to reuse as much local data as possible when using shared
+# gateway).
+# 下面的配置控制怎样以及何时启动一整个集群重启的初始化恢复过程
+# (当使用shard gateway时，是为了尽可能的重用local data(本地数据))
+#
+
+
+# Allow recovery process after N nodes in a cluster are up:
+# 一个集群中的N个节点启动后，才允许进行恢复处理
+#
+# gateway.recover_after_nodes: 1
+
+
+# Set the timeout to initiate the recovery process, once the N nodes
+# from previous setting are up (accepts time value):
+# 设置初始化恢复过程的超时时间，超时时间从上一个配置中配置的N个节点启动后算起
+#
+# gateway.recover_after_time: 5m
+
+
+# Set how many nodes are expected in this cluster. Once these N nodes
+# are up (and recover_after_nodes is met), begin recovery process immediately
+# (without waiting for recover_after_time to expire):
+# 设置这个集群中期望有多少个节点。一旦这N个节点启动(并且recover_after_nodes也符合)，
+# 立即开始恢复过程(不等待recover_after_time超时)
+#
+# gateway.expected_nodes: 2
+
+
+
+
+############################# Recovery Throttling (节点恢复限流阀) #############################
+
+
+# These settings allow to control the process of shards allocation between
+# nodes during initial recovery, replica allocation, rebalancing,
+# or when adding and removing nodes.
+# 这些配置允许在初始化恢复，副本分配，再平衡，或者添加和删除节点时控制节点间的分片分配
+#
+
+
+# Set the number of concurrent recoveries happening on a node:
+# 设置一个节点的并行恢复数
+#
+# 1. During the initial recovery 
+# 1. 初始化恢复期间
+#
+# cluster.routing.allocation.node_initial_primaries_recoveries: 4
+#
+# 2. During adding/removing nodes, rebalancing, etc 
+# 2. 添加/删除节点，再平衡等期间
+#
+# cluster.routing.allocation.node_concurrent_recoveries: 2
+
+
+# Set to throttle throughput when recovering (eg. 100mb, by default unlimited):
+# 设置恢复时的吞吐量（例如，100mb，默认没有上限）
+#
+# indices.recovery.max_size_per_sec: 0
+
+
+# Set to limit the number of open concurrent streams when
+# recovering a shard from a peer:
+# 设置当一个分片从对等点恢复时能够打开的并发流的上限
+#
+
+
+# indices.recovery.concurrent_streams: 5
+
+
+
+
+################################## Discovery(探查) ##################################
+
+
+# Discovery infrastructure ensures nodes can be found within a cluster
+# and master node is elected. Multicast discovery is the default.
+# 探查机制能够保障一个集群中的节点能被找到，并且主节点能够被选举出来。
+# 默认的方式为多播。
+
+
+# Set to ensure a node sees N other master eligible nodes to be considered
+# operational within the cluster. Set this option to a higher value (2-4)
+# for large clusters (>3 nodes):
+# 这个选项用来设置一个节点可以看到其他N个在集群中具有可操性的并且具有当选主节点资格的节点
+# 对于大的集群(大于3个节点)，这个选项应该设置成一个高一点的值(2-4)
+#
+# discovery.zen.minimum_master_nodes: 1
+
+
+# Set the time to wait for ping responses from other nodes when discovering.
+# Set this option to a higher value on a slow or congested network
+# to minimize discovery failures:
+# 设置在探查过程中从其他节点返回ping的回应的等待时间
+# 在一个低速或者拥堵的网络环境中这个选项应该设置的大一些，这样可以降低探查失败的可能性。
+#
+# discovery.zen.ping.timeout: 3s
+
+
+# See <http://elasticsearch.org/guide/reference/modules/discovery/zen.html>
+# for more information.
+# 详情见<http://elasticsearch.org/guide/reference/modules/discovery/zen.html>
+
+
+# Unicast discovery allows to explicitly control which nodes will be used
+# to discover the cluster. It can be used when multicast is not present,
+# or to restrict the cluster communication-wise.
+# 利用单播探查，我们可以显示的指定哪些节点在探查集群过程中会被用到。
+# 当多播不可用，或者需要约束集群的通信时可以使用单播探查。
+#
+# 1. Disable multicast discovery (enabled by default):
+# 1. 禁用多播探查(默认可用)
+#
+# discovery.zen.ping.multicast.enabled: false
+#
+# 2. Configure an initial list of master nodes in the cluster
+#    to perform discovery when new nodes (master or data) are started:
+# 2. 这是一个集群中的主节点的初始列表，当节点(主节点或者数据节点)启动时使用这个列表进行探查
+#
+#
+# discovery.zen.ping.unicast.hosts: ["host1", "host2:port", "host3[portX-portY]"]
+
+
+# EC2 discovery allows to use AWS EC2 API in order to perform discovery.
+# 为了执行探查EC2探查允许使用AWS EC2 API
+#
+# You have to install the cloud-aws plugin for enabling the EC2 discovery.
+# 想要启用EC2探查功能，你必须安装cloud-aws插件
+#
+# See <http://elasticsearch.org/guide/reference/modules/discovery/ec2.html>
+# for more information.
+# 详情见<http://elasticsearch.org/guide/reference/modules/discovery/ec2.html>
+#
+#
+# See <http://elasticsearch.org/tutorials/2011/08/22/elasticsearch-on-ec2.html>
+# for a step-by-step tutorial.
+# 详情见<http://elasticsearch.org/tutorials/2011/08/22/elasticsearch-on-ec2.html>
+
+
+
+
+################################## Slow Log(慢日志) ##################################
+
+
+# Shard level query and fetch threshold logging.
+# 
+
+
+#index.search.slowlog.threshold.query.warn: 10s
+#index.search.slowlog.threshold.query.info: 5s
+#index.search.slowlog.threshold.query.debug: 2s
+#index.search.slowlog.threshold.query.trace: 500ms
+
+
+#index.search.slowlog.threshold.fetch.warn: 1s
+#index.search.slowlog.threshold.fetch.info: 800ms
+#index.search.slowlog.threshold.fetch.debug: 500ms
+#index.search.slowlog.threshold.fetch.trace: 200ms
+
+
+#index.indexing.slowlog.threshold.index.warn: 10s
+#index.indexing.slowlog.threshold.index.info: 5s
+#index.indexing.slowlog.threshold.index.debug: 2s
+#index.indexing.slowlog.threshold.index.trace: 500ms
+
+
+################################## GC Logging ################################
+
+
+#monitor.jvm.gc.ParNew.warn: 1000ms
+#monitor.jvm.gc.ParNew.info: 700ms
+#monitor.jvm.gc.ParNew.debug: 400ms
+
+
+#monitor.jvm.gc.ConcurrentMarkSweep.warn: 10s
+#monitor.jvm.gc.ConcurrentMarkSweep.info: 5s
+#monitor.jvm.gc.ConcurrentMarkSweep.debug: 2s
